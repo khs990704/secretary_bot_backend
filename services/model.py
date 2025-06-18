@@ -1,22 +1,21 @@
+import subprocess
 import requests
-from config import OPENROUTER_API_KEY, OPENROUTER_API_URL, MODEL_NAME
 
-def call_model(prompt: str) -> dict:
-    headers = {
-        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-        "Content-Type": "application/json"
+OLLAMA_URL = "http://localhost:11434/api/generate"
+
+def generate_response(message: str) -> str:
+    payload = {
+        "model": "openchat",
+        "prompt": message,
+        "stream": False
     }
 
-    body = {
-        "model": MODEL_NAME,
-        "messages": [
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ],
-        "temperature": 0.7
-    }
+    try:
+        response = requests.post(OLLAMA_URL, json=payload, timeout=10)
+        response.raise_for_status()
+        data = response.json()
 
-    res = requests.post(OPENROUTER_API_URL, headers=headers, json=body)
-    return res.json()
+        return data.get("response", "").strip()
+
+    except Exception as e:
+        return f"Error: {str(e)}"
