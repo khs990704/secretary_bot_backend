@@ -11,7 +11,7 @@ def generate_response(message: str) -> str:
     }
 
     try:
-        response = requests.post(OLLAMA_URL, json=payload, timeout=10)
+        response = requests.post(OLLAMA_URL, json=payload, timeout=100)
         response.raise_for_status()
         data = response.json()
 
