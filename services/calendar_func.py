@@ -10,7 +10,10 @@ flow = InstalledAppFlow.from_client_secrets_file(
     SCOPES
 )
 
-creds = flow.run_local_server(port=0)
+creds = flow.run_local_server(
+    port=0,
+    open_browser=True
+)
 
 service = build('calendar', 'v3', credentials=creds)
 
@@ -63,9 +66,9 @@ def add_event_to_calendar(service, summary, description, start_time, end_time, t
 
     created_event = service.events().insert(calendarId='primary', body=event).execute()
 
-    print("✅ 이벤트가 추가되었습니다:")
-    print("📅 제목:", created_event["summary"])
-    print("📎 링크:", created_event.get("htmlLink"))
+    print("[INFO] Event has been added")
+    print(f"[INFO] Title : {created_event["summary"]}")
+    print(f"[INFO] Link : {created_event.get("htmlLink")}")
 
 # 이벤트 삭제
 def delete_event_from_calendar(service, target_summary):
@@ -82,7 +85,7 @@ def delete_event_from_calendar(service, target_summary):
     events = events_result.get('items', [])
 
     if not events:
-        print(f"'{target_summary}' 이벤트가 존재하지 않습니다.")
+        print(f"[ERROR] {target_summary} do not exists")
         return
 
     for event in events:
@@ -91,13 +94,80 @@ def delete_event_from_calendar(service, target_summary):
 
             try:
                 service.events().delete(calendarId='primary', eventId=event_id).execute()
-                print(f"✅ 이벤트ID: {event_id}이(가) 성공적으로 삭제되었습니다")
+                print(f"[INFO] {target_summary} has been deleted successfully")
 
             except Exception as e:
-                print(f"❌ 이벤트를 제거하는데 실패하였습니다 (error: {e})")
+                print(f"[ERROR] Failed to delete event : {e}")
 
         else:
-            print(f"'{target_summary}'에 부합하는 이벤트가 존재하지 않습니다.")
+            print(f"[ERROR]'{target_summary}' do not exists")
+
+# 이벤트 패치
+def patch_event_from_calendar(
+        service,
+        target_summary,
+        new_summary=None,
+        new_description=None,
+        new_start_time=None,
+        new_end_time=None,
+        new_timezone=None,
+        new_location=None,
+        new_attendees_emails=None
+):
+
+    now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    events_result = service.events().list(
+        calendarId='primary',
+        timeMin=now,
+        q=target_summary,
+        singleEvents=True,
+        orderBy='startTime'
+    ).execute()
+
+    events = events_result.get('items', [])
+
+    if not events:
+        print(f"[ERROR]'{target_summary}' do not exists")
+        return
+
+    for event in events:
+        if event.get('summary') == target_summary:
+            event_id = event['id']
+            print(f"[INFO] Event has been detected : {event_id}")
+
+            patch_body = {}
+
+            if new_summary is not None:
+                patch_body["summary"] = new_summary
+
+            if new_description is not None:
+                patch_body["description"] = new_description
+
+            if new_start_time is not None:
+                patch_body.setdefault("start", {})["dateTime"] = new_start_time.isoformat()
+                patch_body["start"]["timeZone"] = new_timezone if new_timezone else event["start"].get("timeZone")
+
+            if new_end_time is not None:
+                patch_body.setdefault("end", {})["dateTime"] = new_end_time.isoformat()
+                patch_body["end"]["timeZone"] = new_timezone if new_timezone else event["end"].get("timeZone")
+
+            if new_location is not None:
+                patch_body["location"] = new_location
+
+            if new_attendees_emails is not None:
+                patch_body["attendees"] = [{"email": email} for email in new_attendees_emails]
+
+            result = service.events().patch(
+                calendarId='primary',
+                eventId=event_id,
+                body=patch_body
+            ).execute()
+
+            print(f"[INFO] {target_summary} has been updated successfully")
+            return result
+
+        else:
+            print(f"[ERROR] {target_summary} do not exists")
 
 
 if __name__ == '__main__':
@@ -121,4 +191,13 @@ if __name__ == '__main__':
     # )
 
     # 이벤트 삭제 테스트
-    delete_event_from_calendar(service, target_summary="테스트 by api")
+    delete_event_from_calendar(service, target_summary="테스트 by api 수정")
+
+    # 이벤트 패치 테스트
+    # patch_event_from_calendar(
+    #     service,
+    #     target_summary="테스트 by api",
+    #     new_summary="테스트 by api 수정",
+    #     new_location="서울",
+    #     new_attendees_emails=["origin@example.com", "origin2@example.com"]
+    # )
