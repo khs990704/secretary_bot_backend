@@ -2,6 +2,8 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 import datetime
+import json
+
 
 SCOPES = ["https://www.googleapis.com/auth/calendar"]
 
@@ -17,7 +19,7 @@ creds = flow.run_local_server(
 
 service = build('calendar', 'v3', credentials=creds)
 
-# 이벤트 조회 테스트 (5개)
+# 이벤트 조회 (5개)
 def get_calendar_5events_dummy(service):
 
     now = datetime.datetime.now(datetime.timezone.utc).isoformat()
@@ -30,9 +32,66 @@ def get_calendar_5events_dummy(service):
     ).execute()
 
     events = events_result.get('items', [])
-    print(events)
+    print(json.dumps(events, indent=2, ensure_ascii=False))
 
     return events
+
+# 이벤트 조회 (필터링)
+def get_calendar_events_filtered(
+        service,
+        attendee_email=None,
+        summary_keyword=None,
+        description_keyword=None,
+        location_keyword=None,
+        creator_email=None,
+        date_from=None,
+        date_to=None,
+        max_results=100
+):
+
+    now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    time_min = date_from.isoformat() if date_from else now
+    time_max = date_to.isoformat() if date_to else None
+
+    request_args = {
+        "calendarId": "primary",
+        "timeMin": time_min,
+        "maxResults": max_results,
+        "singleEvents": True,
+        "orderBy": "startTime"
+    }
+
+    if time_max:
+        request_args["timeMax"] = time_max
+
+    events_result = service.events().list(**request_args).execute()
+    events = events_result.get("items", [])
+
+    filtered = []
+    for event in events:
+        if summary_keyword and summary_keyword.lower() not in event.get("summary", "").lower():
+            continue
+
+        if description_keyword and description_keyword.lower() not in event.get("description", "").lower():
+            continue
+
+        if location_keyword and location_keyword.lower() not in event.get("location", "").lower():
+            continue
+
+        if creator_email and creator_email.lower() != event.get("creator", {}).get("email", "").lower():
+            continue
+
+        if attendee_email:
+            attendees = event.get("attendees", [])
+            if not any(attendee_email.lower() == a.get("email", "").lower() for a in attendees):
+                continue
+
+        filtered.append(event)
+
+    for filter_event in filtered:
+        print(json.dumps(filter_event, indent=2, ensure_ascii=False))
+
+    return filtered
 
 # 이벤트 추가
 def add_event_to_calendar(service, summary, description, start_time, end_time, timezone, location, attendees_emails=None):
@@ -174,6 +233,18 @@ if __name__ == '__main__':
     # 이벤트 조회 테스트
     # get_calendar_5events_dummy(service)
 
+    # 이벤트 조회 필터링 테스트 (교집합)
+    get_calendar_events_filtered(
+        service,
+        # attendee_email="user1@example.com",
+        # summary_keyword="테스트",
+        # description_keyword="이슈",
+        # location_keyword="zoom",
+        # creator_email="rlagmltjq74@gmail.com",
+        # date_from=datetime.datetime(2025,7,25,17,58, tzinfo=datetime.timezone(datetime.timedelta(hours=9))),
+        # date_to=datetime.datetime(2025,7,25,18,58, tzinfo=datetime.timezone(datetime.timedelta(hours=9)))
+    )
+
     # 이벤트 등록 테스트
     # now = datetime.datetime.now(datetime.timezone.utc)
     # start = now + datetime.timedelta(hours=1)
@@ -191,7 +262,7 @@ if __name__ == '__main__':
     # )
 
     # 이벤트 삭제 테스트
-    delete_event_from_calendar(service, target_summary="테스트 by api 수정")
+    # delete_event_from_calendar(service, target_summary="테스트 by api 수정")
 
     # 이벤트 패치 테스트
     # patch_event_from_calendar(
