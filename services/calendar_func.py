@@ -185,7 +185,10 @@ def patch_event_from_calendar(
         new_end_time=None,
         new_timezone=None,
         new_location=None,
-        new_attendees_emails=None
+        new_attendees_emails=None,
+        new_recurrence=None,
+        new_reminders=None,
+        new_color_id=None
 ):
 
     now = datetime.datetime.now(datetime.timezone.utc).isoformat()
@@ -204,43 +207,61 @@ def patch_event_from_calendar(
         return
 
     for event in events:
-        if event.get('summary') == target_summary:
-            event_id = event['id']
-            print(f"[INFO] Event has been detected : {event_id}")
+        if event.get('summary') != target_summary:
+            continue
 
-            patch_body = {}
+        event_id = event["id"]
+        print(f"[INFO] Event has been detected : {event_id}")
 
-            if new_summary is not None:
-                patch_body["summary"] = new_summary
+        if new_recurrence is not None:
+            master_id = event.get("recurringEventId") or event["id"]
+            master_event = service.events().get(calendarId='primary', eventId=master_id).execute()
+            master_event["recurrence"] = new_recurrence
+            service.events().update(calendarId='primary', eventId=master_id, body=master_event).execute()
+            print(f"[INFO] Recurrence has been updated on master event: {master_id}")
 
-            if new_description is not None:
-                patch_body["description"] = new_description
+        event = service.events().get(calendarId='primary', eventId=event_id).execute()
 
-            if new_start_time is not None:
-                patch_body.setdefault("start", {})["dateTime"] = new_start_time.isoformat()
-                patch_body["start"]["timeZone"] = new_timezone if new_timezone else event["start"].get("timeZone")
+        if new_summary is not None:
+            event["summary"] = new_summary
 
-            if new_end_time is not None:
-                patch_body.setdefault("end", {})["dateTime"] = new_end_time.isoformat()
-                patch_body["end"]["timeZone"] = new_timezone if new_timezone else event["end"].get("timeZone")
+        if new_description is not None:
+            event["description"] = new_description
 
-            if new_location is not None:
-                patch_body["location"] = new_location
+        if new_start_time is not None:
+            event["start"] = {
+                "dateTime": new_start_time.isoformat(),
+                "timeZone": new_timezone if new_timezone else event["start"].get("timeZone", "UTC")
+            }
 
-            if new_attendees_emails is not None:
-                patch_body["attendees"] = [{"email": email} for email in new_attendees_emails]
+        if new_end_time is not None:
+            event["end"] = {
+                "dateTime": new_end_time.isoformat(),
+                "timeZone": new_timezone if new_timezone else event["end"].get("timeZone", "UTC")
+            }
 
-            result = service.events().patch(
+        if new_location is not None:
+            event["location"] = new_location
+
+        if new_attendees_emails is not None:
+            event["attendees"] = [{"email": email} for email in new_attendees_emails]
+
+        if new_color_id is not None:
+            event["colorId"] = new_color_id
+
+        if new_reminders is not None:
+            event["reminders"] = new_reminders
+
+            result = service.events().update(
                 calendarId='primary',
                 eventId=event_id,
-                body=patch_body
+                body=event
             ).execute()
 
             print(f"[INFO] {target_summary} has been updated successfully")
             return result
 
-        else:
-            print(f"[ERROR] {target_summary} do not exists")
+        print(f"[ERROR] {target_summary} do not exists")
 
 
 if __name__ == '__main__':
@@ -260,40 +281,51 @@ if __name__ == '__main__':
     # )
 
     # 이벤트 등록 테스트
-    now = datetime.datetime.now(datetime.timezone.utc)
-    start = now + datetime.timedelta(hours=1)
-    end = start + datetime.timedelta(hours=1)
-
-    add_event_to_calendar(
-        service=service,
-        summary="테스트 by api",
-        description="진행 상황 공유 및 이슈 정리",
-        start_time=start,
-        end_time=end,
-        timezone='Asia/Seoul',
-        location="온라인 Zoom",
-        attendees_emails=["user1@example.com", "user2@example.com"],
-        recurrence=["RRULE:FREQ=WEEKLY;BYDAY=WE"],
-        reminders={
-          "useDefault": False,
-            "overrides": [
-                {
-                    "method": "popup",
-                    "minutes": 30
-                }
-            ]
-        },
-        color_id="5"
-    )
+    # now = datetime.datetime.now(datetime.timezone.utc)
+    # start = now + datetime.timedelta(hours=1)
+    # end = start + datetime.timedelta(hours=1)
+    #
+    # add_event_to_calendar(
+    #     service=service,
+    #     summary="테스트 by api",
+    #     description="진행 상황 공유 및 이슈 정리",
+    #     start_time=start,
+    #     end_time=end,
+    #     timezone='Asia/Seoul',
+    #     location="온라인 Zoom",
+    #     attendees_emails=["user1@example.com", "user2@example.com"],
+    #     recurrence=["RRULE:FREQ=WEEKLY;BYDAY=WE"],
+    #     reminders={
+    #         "useDefault": False,
+    #         "overrides": [
+    #             {
+    #                 "method": "popup",
+    #                 "minutes": 30
+    #             }
+    #         ]
+    #     },
+    #     color_id="5"
+    # )
 
     # 이벤트 삭제 테스트
     # delete_event_from_calendar(service, target_summary="테스트 by api 수정")
 
     # 이벤트 패치 테스트
-    # patch_event_from_calendar(
-    #     service,
-    #     target_summary="테스트 by api",
-    #     new_summary="테스트 by api 수정",
-    #     new_location="서울",
-    #     new_attendees_emails=["origin@example.com", "origin2@example.com"]
-    # )
+    patch_event_from_calendar(
+        service,
+        target_summary="테스트 by api",
+        new_summary="테스트 by api 수정",
+        new_location="서울",
+        new_attendees_emails=["origin@example.com", "origin2@example.com"],
+        new_recurrence=["RRULE:FREQ=WEEKLY;BYDAY=TU"],
+        new_reminders={
+            "useDefault": False,
+            "overrides": [
+                {
+                    "method": "popup",
+                    "minutes": 10
+                }
+            ]
+        },
+        new_color_id="3"
+    )
