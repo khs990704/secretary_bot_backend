@@ -176,7 +176,7 @@ def delete_event_from_calendar(service, target_summary):
             print(f"[ERROR]'{target_summary}' do not exists")
 
 # 이벤트 패치
-def patch_event_from_calendar(
+def update_event_from_calendar(
         service,
         target_summary,
         new_summary=None,
@@ -311,7 +311,7 @@ if __name__ == '__main__':
     # delete_event_from_calendar(service, target_summary="테스트 by api 수정")
 
     # 이벤트 패치 테스트
-    patch_event_from_calendar(
+    update_event_from_calendar(
         service,
         target_summary="테스트 by api",
         new_summary="테스트 by api 수정",
