@@ -94,7 +94,19 @@ def get_calendar_events_filtered(
     return filtered
 
 # 이벤트 추가
-def add_event_to_calendar(service, summary, description, start_time, end_time, timezone, location, attendees_emails=None):
+def add_event_to_calendar(
+        service,
+        summary,
+        description,
+        start_time,
+        end_time,
+        timezone,
+        location,
+        attendees_emails=None,
+        recurrence=None,
+        reminders=None,
+        color_id=None
+):
 
     if attendees_emails is None:
         attendees_emails = []
@@ -114,14 +126,16 @@ def add_event_to_calendar(service, summary, description, start_time, end_time, t
             "timeZone": timezone,
         },
         "attendees": attendees,
-        "reminders": {
-            "useDefault": False,
-            "overrides": [
-                {"method": "email", "minutes": 30},
-                {"method": "popup", "minutes": 10},
-            ],
+        "reminders": reminders if reminders is not None else {
+            "useDefault": True
         }
     }
+
+    if recurrence:
+        event["recurrence"] = recurrence
+
+    if color_id:
+        event["colorId"] = color_id
 
     created_event = service.events().insert(calendarId='primary', body=event).execute()
 
@@ -234,8 +248,8 @@ if __name__ == '__main__':
     # get_calendar_5events_dummy(service)
 
     # 이벤트 조회 필터링 테스트 (교집합)
-    get_calendar_events_filtered(
-        service,
+    # get_calendar_events_filtered(
+    #     service,
         # attendee_email="user1@example.com",
         # summary_keyword="테스트",
         # description_keyword="이슈",
@@ -243,23 +257,34 @@ if __name__ == '__main__':
         # creator_email="rlagmltjq74@gmail.com",
         # date_from=datetime.datetime(2025,7,25,17,58, tzinfo=datetime.timezone(datetime.timedelta(hours=9))),
         # date_to=datetime.datetime(2025,7,25,18,58, tzinfo=datetime.timezone(datetime.timedelta(hours=9)))
-    )
+    # )
 
     # 이벤트 등록 테스트
-    # now = datetime.datetime.now(datetime.timezone.utc)
-    # start = now + datetime.timedelta(hours=1)
-    # end = start + datetime.timedelta(hours=1)
-    #
-    # add_event_to_calendar(
-    #     service=service,
-    #     summary="테스트 by api",
-    #     description="진행 상황 공유 및 이슈 정리",
-    #     start_time=start,
-    #     end_time=end,
-    #     timezone='Asia/Seoul',
-    #     location="온라인 Zoom",
-    #     attendees_emails=["user1@example.com", "user2@example.com"]
-    # )
+    now = datetime.datetime.now(datetime.timezone.utc)
+    start = now + datetime.timedelta(hours=1)
+    end = start + datetime.timedelta(hours=1)
+
+    add_event_to_calendar(
+        service=service,
+        summary="테스트 by api",
+        description="진행 상황 공유 및 이슈 정리",
+        start_time=start,
+        end_time=end,
+        timezone='Asia/Seoul',
+        location="온라인 Zoom",
+        attendees_emails=["user1@example.com", "user2@example.com"],
+        recurrence=["RRULE:FREQ=WEEKLY;BYDAY=WE"],
+        reminders={
+          "useDefault": False,
+            "overrides": [
+                {
+                    "method": "popup",
+                    "minutes": 30
+                }
+            ]
+        },
+        color_id="5"
+    )
 
     # 이벤트 삭제 테스트
     # delete_event_from_calendar(service, target_summary="테스트 by api 수정")
